@@ -2,7 +2,9 @@
 
 Just tune your guitar. Installable, offline, and entirely on your device.
 
-**https://tuna.saffronbun.com**
+<p align="center">
+  <img src="docs/screenshot.png" alt="OpenTuner tuning a guitar string" width="440">
+</p>
 
 Automatic or manual tuning, six presets, and saved custom tunings.
 System, light and dark themes. No account or audio uploads.
