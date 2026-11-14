@@ -1283,6 +1283,14 @@ dialog::backdrop {
   );
 }
 /* Let the guitar neck dissolve into the page instead of ending at a hard edge. */
-.guitar {
-  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+@media (max-width: 799px) {
+  .guitar {
+    mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  }
+}
+/* On desktop the whole image fits, so fade the neck itself. */
+@media (min-width: 800px) {
+  .headstock {
+    mask-image: linear-gradient(to bottom, #000 55%, transparent 97%);
+  }
 }
