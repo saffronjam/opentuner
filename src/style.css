@@ -1282,3 +1282,7 @@ dialog::backdrop {
     transparent
   );
 }
+/* Let the guitar neck dissolve into the page instead of ending at a hard edge. */
+.guitar {
+  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}

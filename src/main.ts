@@ -13,9 +13,10 @@ const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 function applyTheme() {
   document.documentElement.dataset.theme = settings.theme;
   const dark = settings.theme === "dark" || (settings.theme === "system" && systemTheme.matches);
-  document
-    .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", dark ? "#211a16" : "#f6efe6");
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.removeAttribute("media");
+    meta.setAttribute("content", dark ? "#211a16" : "#f6efe6");
+  });
 }
 applyTheme();
 systemTheme.addEventListener("change", applyTheme);
