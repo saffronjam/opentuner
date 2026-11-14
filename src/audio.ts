@@ -1,4 +1,5 @@
 import captureSource from "./capture.worklet.js?raw";
+import completeURL from "./sounds/complete.mp3?url";
 import type { Reading } from "./tuning";
 export class AudioEngine {
   private context: AudioContext | null = null;
@@ -9,6 +10,8 @@ export class AudioEngine {
   private busy = false;
   private mutedUntil = 0;
   private wake: WakeLockSentinel | null = null;
+  private completionBuffer: Promise<AudioBuffer> | null = null;
+  private completionSource: AudioBufferSourceNode | null = null;
   async start(onReading: (r: Reading) => void, onEnded: () => void) {
     this.stop();
     const generation = this.generation;
@@ -87,10 +90,11 @@ export class AudioEngine {
         .connect(silence)
         .connect(context.destination);
       try {
-        this.wake = (await navigator.wakeLock?.request("screen")) ?? null;
+        const wake = (await navigator.wakeLock?.request("screen")) ?? null;
         if (generation !== this.generation) {
-          await this.wake?.release();
-          this.wake = null;
+          await wake?.release();
+        } else {
+          this.wake = wake;
         }
       } catch {
         /* Optional platform feature. */
@@ -103,26 +107,44 @@ export class AudioEngine {
   suppressFor(milliseconds: number) {
     this.mutedUntil = performance.now() + milliseconds;
   }
-  chime() {
-    const c = this.context;
+  isSuppressed() {
+    return performance.now() < this.mutedUntil;
+  }
+  async chime() {
+    const c = this.context,
+      generation = this.generation;
     if (!c) return;
-    this.mutedUntil = performance.now() + 550;
-    const o = c.createOscillator(),
-      g = c.createGain();
-    o.frequency.setValueAtTime(660, c.currentTime);
-    o.frequency.setValueAtTime(880, c.currentTime + 0.09);
-    g.gain.setValueAtTime(0.035, c.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.24);
-    o.connect(g).connect(c.destination);
-    o.start();
-    o.stop(c.currentTime + 0.25);
-    o.onended = () => {
-      o.disconnect();
-      g.disconnect();
-    };
+    try {
+      this.completionBuffer ??= fetch(completeURL)
+        .then((response) => {
+          if (!response.ok) throw new Error("Completion sound unavailable");
+          return response.arrayBuffer();
+        })
+        .then((data) => c.decodeAudioData(data));
+      const buffer = await this.completionBuffer;
+      if (generation !== this.generation) return;
+      this.completionSource?.stop();
+      const source = c.createBufferSource();
+      source.buffer = buffer;
+      source.connect(c.destination);
+      this.completionSource = source;
+      this.suppressFor(buffer.duration * 1000 + 300);
+      source.start();
+      source.onended = () => {
+        source.disconnect();
+        if (this.completionSource === source) this.completionSource = null;
+      };
+    } catch (error) {
+      if (generation !== this.generation) return;
+      this.completionBuffer = null;
+      throw error;
+    }
   }
   stop() {
     this.generation++;
+    this.completionSource?.stop();
+    this.completionSource = null;
+    this.completionBuffer = null;
     this.busy = false;
     this.capture?.disconnect();
     this.capture = null;

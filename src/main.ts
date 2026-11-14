@@ -1,12 +1,24 @@
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
 import { AudioEngine } from "./audio";
+import { CompletionGate, offsetLabel } from "./completion";
+import { TuningDisplay, graphPosition, tuningState, markerState } from "./display";
 import { ReferencePlayer } from "./reference";
 import { PRESETS, Tracker, note, loadSettings, saveSettings, type Tuning } from "./tuning";
 import headstock from "./headstock.webp";
 declare const __APP_VERSION__: string;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const settings = loadSettings();
+const systemTheme = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme() {
+  document.documentElement.dataset.theme = settings.theme;
+  const dark = settings.theme === "dark" || (settings.theme === "system" && systemTheme.matches);
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", dark ? "#211a16" : "#f6efe6");
+}
+applyTheme();
+systemTheme.addEventListener("change", applyTheme);
 let tuning = [...PRESETS, ...settings.custom].find((t) => t.id === settings.selected) ?? PRESETS[0];
 let manual: number | null = null,
   running = false,
@@ -19,7 +31,7 @@ const reference = new ReferencePlayer();
 const gear =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m9 3-.6 2.1-1.7 1L4.5 6l-2 3.5L4 11v2l-1.5 1.5 2 3.5 2.2-.1 1.7 1L9 21h4l.6-2.1 1.7-1 2.2.1 2-3.5L18 13v-2l1.5-1.5-2-3.5-2.2.1-1.7-1L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>';
 $("app").innerHTML =
-  `<div class="tuner"><header><a class="brand" href="/" aria-label="OpenTuner home"><img src="/icon.svg" width="30" height="30" alt="">OpenTuner</a><div class="header-actions"><label class="auto">AUTO <input id="auto" type="checkbox" role="switch" checked aria-label="Automatic string detection"><span class="switch"></span></label><button id="settings" class="icon-button" aria-label="Settings">${gear}</button></div></header><section class="meter" aria-label="Pitch meter"><svg class="pitch-history" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path id="trace" fill="none" vector-effect="non-scaling-stroke"/></svg><div class="scale"><span>♭</span><span>♯</span></div><div class="zero"></div><div class="needle" id="needle"><span id="cents">—</span></div><div class="reading"><strong id="note">—</strong><div><p id="status" role="status">Ready to tune</p><span id="detail">Pluck one string at a time</span></div></div></section><section class="guitar" aria-label="Guitar strings"><div class="headstock-layout"><img class="headstock" src="${headstock}" alt="Acoustic guitar headstock" draggable="false"><div id="strings"></div></div></section></div><dialog id="sheet"><div class="sheet-heading"><h1 id="sheet-title"></h1><button id="close" class="icon-button" aria-label="Close"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="sheet-body"></div></dialog><div id="notification" popover="manual" role="alert"><div><strong id="notification-level"></strong><p id="notification-message"></p></div><button id="enable-mic" hidden>Enable microphone</button><button id="dismiss-notification" aria-label="Dismiss notification">×</button></div>`;
+  `<div class="tuner"><header><a class="brand" href="/" aria-label="OpenTuner home"><img src="/icon.svg" width="30" height="30" alt="">OpenTuner</a><div class="header-actions"><label class="auto">AUTO <input id="auto" type="checkbox" role="switch" checked aria-label="Automatic string detection"><span class="switch"></span></label><button id="settings" class="icon-button" aria-label="Settings">${gear}</button></div></header><section class="meter" aria-label="Pitch meter"><div class="chart-grid" aria-hidden="true"></div><svg class="pitch-history" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="trace-opacity" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="100"><stop offset="0%" stop-color="white" stop-opacity=".85"/><stop offset="100%" stop-color="white" stop-opacity="0"/></linearGradient><mask id="trace-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect width="100" height="100" fill="url(#trace-opacity)"/></mask></defs><g id="trace" mask="url(#trace-mask)"><path id="trace-orange" fill="none" vector-effect="non-scaling-stroke"/><path id="trace-yellow" fill="none" vector-effect="non-scaling-stroke"/><path id="trace-green" fill="none" vector-effect="non-scaling-stroke"/></g></svg><div class="scale"><span>♭</span><span>♯</span></div><div class="zero"></div><div class="needle" id="needle"><div class="marker-face"><strong id="marker-value"></strong><svg class="marker-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4 10-10"/></svg></div></div><div class="reading"><strong id="note">—</strong><div><p id="status" role="status">Ready to tune</p><span id="detail">Pluck one string at a time</span></div></div></section><section class="guitar" aria-label="Guitar strings"><div class="headstock-layout"><img class="headstock" src="${headstock}" alt="Acoustic guitar headstock" draggable="false"><div id="strings"></div></div></section></div><dialog id="sheet"><div class="sheet-heading"><h1 id="sheet-title"></h1><button id="close" class="icon-button" aria-label="Close"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="sheet-body"></div></dialog><div id="notification" popover="manual" role="alert"><div><strong id="notification-level"></strong><p id="notification-message"></p></div><button id="enable-mic" hidden>Enable microphone</button><button id="dismiss-notification" aria-label="Dismiss notification">×</button></div>`;
 let notificationTimer: ReturnType<typeof setTimeout>;
 function clearNotification() {
   clearTimeout(notificationTimer);
@@ -46,7 +58,7 @@ function renderStrings() {
       const b = document.createElement("button");
       b.className = `string string-${i}`;
       b.dataset.index = String(i);
-      b.innerHTML = `<span>${note(n)}</span><small>${6 - i}</small>`;
+      b.innerHTML = `<span>${note(n)}</span>`;
       b.setAttribute("aria-label", `String ${6 - i}, ${note(n, true)}`);
       b.setAttribute("aria-pressed", String(manual === i));
       b.onclick = () => {
@@ -69,36 +81,58 @@ function highlight(index: number) {
     b.setAttribute("aria-pressed", String(Number(b.dataset.index) === manual));
   });
 }
-type TracePoint = { time: number; error: number; string: number };
+type TracePoint = {
+  time: number;
+  error: number;
+  string: number;
+  tone: "orange" | "yellow" | "green";
+};
 let tracePoints: TracePoint[] = [];
 let lastTracePaint = 0;
+const display = new TuningDisplay();
+let displayedString = -1;
+const completion = new CompletionGate();
 function paintTrace(now: number) {
   if (now - lastTracePaint > 30 && tracePoints.length) {
-    tracePoints = tracePoints.filter((p) => now - p.time < 5000);
-    let path = "";
+    tracePoints = tracePoints.filter((p) => now - p.time < 12000);
+    const paths = { orange: "", yellow: "", green: "" };
     let previous: TracePoint | undefined;
+    let previousX = 0,
+      previousY = 0;
     for (const p of tracePoints) {
-      const x = 50 + Math.max(-1, Math.min(1, p.error / 50)) * 43;
-      const y = 80 - ((now - p.time) / 5000) * 80;
-      path += `${!previous || previous.string !== p.string || p.time - previous.time > 200 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)} `;
+      const x = 50 + graphPosition(p.error) * 43;
+      const y = 20 + ((now - p.time) / 12000) * 80;
+      const connected = previous && previous.string === p.string && p.time - previous.time <= 200;
+      if (!connected) paths[p.tone] += `M${x.toFixed(2)},${y.toFixed(2)} `;
+      else if (previous && previous.tone !== p.tone)
+        paths[p.tone] +=
+          `M${previousX.toFixed(2)},${previousY.toFixed(2)} L${x.toFixed(2)},${y.toFixed(2)} `;
+      else paths[p.tone] += `L${x.toFixed(2)},${y.toFixed(2)} `;
       previous = p;
+      previousX = x;
+      previousY = y;
     }
-    $("trace").setAttribute("d", path);
+    for (const tone of ["orange", "yellow", "green"] as const)
+      $("trace-" + tone).setAttribute("d", paths[tone]);
     lastTracePaint = now;
   }
   requestAnimationFrame(paintTrace);
 }
 requestAnimationFrame(paintTrace);
 function resetMeter(clearTrace = true) {
+  display.reset();
+  displayedString = -1;
+
   if (clearTrace) {
     tracePoints = [];
-    $("trace").setAttribute("d", "");
+    for (const tone of ["orange", "yellow", "green"]) $("trace-" + tone).setAttribute("d", "");
   }
   $("note").textContent = manual === null ? "—" : note(tuning.notes[manual]);
-  $("cents").textContent = "—";
+  $("marker-value").textContent = "";
   $("needle").style.setProperty("--offset", "0px");
   $("needle").classList.remove("heard");
   $("app").classList.remove("in-tune");
+  $("app").dataset.tuningState = "idle";
   $("status").textContent = running ? "Listening…" : "Ready to tune";
   $("detail").textContent = "Pluck one string at a time";
   lastReading = 0;
@@ -123,27 +157,53 @@ async function start() {
         const result = tracker.update(r, tuning, manual);
         if (!result) return;
         lastReading = performance.now();
-        tracePoints.push({ time: lastReading, error: result.cents, string: result.string });
-        if (tracePoints.length > 300) tracePoints.shift();
+        if (displayedString !== result.string) {
+          display.reset();
+          displayedString = result.string;
+        }
+        const guide = display.update(result.cents, lastReading);
+        const marker = markerState(guide.cents, guide.step);
+        const done = marker.inTune;
+        const state = tuningState(guide.cents, done);
+        tracePoints.push({
+          time: lastReading,
+          error: guide.cents,
+          string: result.string,
+          tone: state === "tuned" ? "green" : state === "close" ? "yellow" : "orange",
+        });
+        if (tracePoints.length > 650) tracePoints.shift();
         highlight(result.string);
         $("note").textContent = note(tuning.notes[result.string]);
-        $("cents").textContent = `${result.cents > 0 ? "+" : ""}${Math.round(result.cents)}`;
+        const offset = marker.offset;
+        $("marker-value").textContent = offsetLabel(offset);
+        $("marker-value").style.fontSize = Math.abs(offset) >= 100 ? "12px" : "";
         $("needle").style.setProperty(
           "--offset",
-          `${Math.max(-1, Math.min(1, result.cents / 50)) * $("needle").parentElement!.clientWidth * 0.43}px`,
+          `${graphPosition(guide.cents) * $("needle").parentElement!.clientWidth * 0.43}px`,
         );
         $("needle").classList.add("heard");
-        $("status").textContent = result.inTune
+        $("status").textContent = done
           ? "In tune"
-          : Math.abs(result.cents) <= 3
+          : Math.abs(result.cents) <= 5
             ? "Hold steady"
             : result.cents < 0
               ? "Tune up"
               : "Tune down";
         $("detail").textContent =
           `String ${6 - result.string} · ${note(tuning.notes[result.string], true)}`;
-        $("app").classList.toggle("in-tune", result.inTune);
-        if (result.confirmed && settings.sound) engine.chime();
+        $("app").classList.toggle("in-tune", done);
+        $("app").dataset.tuningState = state;
+        if (
+          completion.update(
+            `${tuning.id}:${result.string}:${tuning.notes[result.string]}`,
+            done,
+            lastReading,
+            result.inTune,
+          ) &&
+          settings.sound
+        ) {
+          void engine.chime().catch(() => notify("Could not play the completion sound."));
+        }
       },
       () => {
         stop();
@@ -188,6 +248,7 @@ function stop() {
   tracker.reset();
 
   resetMeter();
+  completion.update(null, false, performance.now());
 }
 $("enable-mic").onclick = () => {
   micBlocked = false;
@@ -204,10 +265,13 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", stop);
 setInterval(() => {
-  if (running && lastReading && performance.now() - lastReading > 700) {
+  if (!running || engine.isSuppressed()) return;
+  const now = performance.now();
+  if (lastReading && now - lastReading > 700) {
     tracker.reset();
     resetMeter(false);
   }
+  if (!$("app").classList.contains("in-tune")) completion.update(null, false, now);
 }, 150);
 const sheet = $<HTMLDialogElement>("sheet");
 let sheetEpoch = 0;
@@ -349,7 +413,33 @@ let updateReady = false;
 let updateApp: (reload?: boolean) => Promise<void>;
 function showSettings() {
   openSheet("Settings");
+  if (micBlocked)
+    $("sheet-body").append(
+      button("Enable microphone", () => {
+        closeSheet();
+        micBlocked = false;
+        void start();
+      }),
+    );
   $("sheet-body").append(button(`Tuning · ${tuning.name}`, choose));
+  const themeLabel = document.createElement("label");
+  themeLabel.className = "row theme-row";
+  themeLabel.textContent = "Theme";
+  const themeSelect = document.createElement("select");
+  themeSelect.setAttribute("aria-label", "Theme");
+  for (const [value, label] of [
+    ["system", "System"],
+    ["light", "Light"],
+    ["dark", "Dark"],
+  ])
+    themeSelect.add(new Option(label, value, false, settings.theme === value));
+  themeSelect.onchange = () => {
+    settings.theme = themeSelect.value as typeof settings.theme;
+    applyTheme();
+    persist();
+  };
+  themeLabel.append(themeSelect);
+  $("sheet-body").append(themeLabel);
   const label = document.createElement("label");
   label.className = "row sound-row";
   label.textContent = "In-tune sound";

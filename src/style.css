@@ -657,7 +657,7 @@ dialog::backdrop {
 .string {
   width: 44px;
   height: 44px;
-  font-size: 22px;
+  font-size: 20px;
 }
 .string small {
   font-size: 8px;
@@ -677,7 +677,7 @@ dialog::backdrop {
   .string {
     width: 48px;
     height: 48px;
-    font-size: 24px;
+    font-size: 22px;
   }
   .reading strong {
     font-size: 76px;
@@ -972,4 +972,313 @@ dialog::backdrop {
 }
 #enable-mic[hidden] {
   display: none;
+}
+.pitch-history path {
+  stroke: url(#trace-fade);
+  opacity: 1;
+}
+#trace-fade stop {
+  stop-color: var(--accent);
+}
+.scale {
+  top: 20%;
+}
+.needle {
+  top: calc(20% - 28px);
+  opacity: 1;
+}
+.marker-face {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.marker-face strong {
+  font-size: 23px;
+  font-weight: 650;
+  line-height: 1;
+}
+.marker-face #cents {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.needle:after {
+  left: 27px;
+  top: 55px;
+  height: 18px;
+}
+.marker-face {
+  width: 36px;
+  height: 36px;
+  border-width: 2px;
+}
+.marker-face strong {
+  font-size: 16px;
+}
+.needle {
+  top: calc(20% - 18px);
+}
+.needle:after {
+  left: 17px;
+  top: 35px;
+  height: 10px;
+}
+.chart-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: center;
+  opacity: 0.5;
+  mask-image:
+    linear-gradient(to right, transparent, #000 12%, #000 88%, transparent),
+    linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  mask-composite: intersect;
+}
+.zero {
+  opacity: 0.35;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--accent) 12%,
+    var(--accent) 88%,
+    transparent
+  );
+}
+.scale {
+  border-image: linear-gradient(
+      to right,
+      transparent,
+      var(--line) 15%,
+      var(--line) 85%,
+      transparent
+    )
+    1;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6efe6;
+  --ink: #36261c;
+  --muted: #786351;
+  --line: #d6c7b6;
+  --accent: #a84318;
+  --soft: #ead8c7;
+  --panel: #fff9f1;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #211a16;
+  --ink: #f7eadc;
+  --muted: #baa38f;
+  --line: #493b31;
+  --accent: #f49555;
+  --soft: #3d2e24;
+  --panel: #2b211b;
+}
+.theme-row select {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 110px;
+  min-height: 42px;
+}
+.marker-face {
+  position: relative;
+  z-index: 1;
+}
+.needle:after {
+  left: 12px;
+  top: 32px;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  z-index: 0;
+}
+.marker-face strong {
+  transition: opacity 180ms ease;
+}
+.marker-check {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.in-tune .marker-face strong {
+  opacity: 0;
+}
+.in-tune .marker-check {
+  opacity: 1;
+}
+.zero {
+  transition: opacity 450ms ease;
+}
+.in-tune .zero {
+  opacity: 0.95;
+}
+/* Neutral measurement grid; colour is reserved for tuning feedback. */
+:root {
+  --graph-line: #aaa;
+  --graph-ink: #646464;
+  --tune-orange: #b94d13;
+  --tune-yellow: #8a6700;
+  --tune-green: #18743c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --graph-line: #626262;
+    --graph-ink: #bbb;
+    --tune-orange: #fb923c;
+    --tune-yellow: #facc15;
+    --tune-green: #4ade80;
+  }
+}
+:root[data-theme="dark"] {
+  --graph-line: #626262;
+  --graph-ink: #bbb;
+  --tune-orange: #fb923c;
+  --tune-yellow: #facc15;
+  --tune-green: #4ade80;
+}
+#app {
+  --feedback-color: var(--graph-ink);
+}
+#app[data-tuning-state="far"] {
+  --feedback-color: var(--tune-orange);
+}
+#app[data-tuning-state="approaching"] {
+  --feedback-color: var(--tune-orange);
+}
+#app[data-tuning-state="close"] {
+  --feedback-color: var(--tune-yellow);
+}
+#app[data-tuning-state="tuned"] {
+  --feedback-color: var(--tune-green);
+}
+.chart-grid {
+  background-image:
+    linear-gradient(to right, var(--graph-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--graph-line) 1px, transparent 1px);
+}
+.scale {
+  color: var(--graph-ink);
+  border-color: var(--graph-line);
+  border-image: linear-gradient(
+      to right,
+      transparent,
+      var(--graph-line) 15%,
+      var(--graph-line) 85%,
+      transparent
+    )
+    1;
+}
+#trace-fade stop {
+  stop-color: var(--graph-ink);
+}
+.marker-face {
+  border-color: var(--feedback-color);
+  color: var(--ink);
+  transition:
+    border-color 200ms ease,
+    color 200ms ease;
+}
+.needle:after {
+  background: var(--feedback-color);
+  transition: background-color 200ms ease;
+}
+.marker-check {
+  color: var(--tune-green);
+}
+.zero {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--graph-line) 12%,
+    var(--graph-line) 88%,
+    transparent
+  );
+}
+.zero:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--tune-green) 12%,
+    var(--tune-green) 88%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 450ms ease;
+}
+.in-tune .zero:after {
+  opacity: 1;
+}
+.pitch-history #trace-orange {
+  stroke: var(--tune-orange);
+}
+.pitch-history #trace-yellow {
+  stroke: var(--tune-yellow);
+}
+.pitch-history #trace-green {
+  stroke: var(--tune-green);
+}
+/* The grid crosses at the pitch guide and the marker's pointed tip. */
+.chart-grid {
+  background-position: calc(50% + 12px) calc(20% + 4.8px);
+}
+.scale {
+  top: 20%;
+  height: 0;
+  padding: 0;
+  display: block;
+  transform: none;
+  line-height: 1;
+  border-bottom-width: 1px;
+}
+.scale span {
+  position: absolute;
+  bottom: 8px;
+}
+.scale span:first-child {
+  left: 0;
+}
+.scale span:last-child {
+  right: 0;
+}
+.needle {
+  top: calc(20% - 44px);
+}
+.zero {
+  opacity: 0.6;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--graph-ink) 12%,
+    var(--graph-ink) 88%,
+    transparent
+  );
 }

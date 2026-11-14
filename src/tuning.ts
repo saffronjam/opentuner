@@ -73,7 +73,7 @@ export class Tracker {
       return null;
     this.last = r.time;
     this.smooth += 0.35 * (error - this.smooth);
-    if (Math.abs(error) <= 3 && Math.abs(this.smooth) <= 3) {
+    if (Math.abs(error) <= 5.000001 && Math.abs(this.smooth) <= 5.000001) {
       this.stableSince ??= r.time;
     } else {
       this.stableSince = null;
@@ -85,9 +85,14 @@ export class Tracker {
     return { string: index, cents: this.smooth, inTune, confirmed };
   }
 }
-export type Settings = { selected: string; sound: boolean; custom: Tuning[] };
+export type Settings = {
+  selected: string;
+  sound: boolean;
+  custom: Tuning[];
+  theme: "system" | "light" | "dark";
+};
 export function loadSettings(): Settings {
-  const fallback = { selected: "standard", sound: true, custom: [] };
+  const fallback: Settings = { selected: "standard", sound: true, custom: [], theme: "system" };
   try {
     const s = JSON.parse(localStorage.getItem("opentuner:v1") || "null");
     if (!s || !Array.isArray(s.custom)) return fallback;
@@ -106,6 +111,7 @@ export function loadSettings(): Settings {
       selected: typeof s.selected === "string" ? s.selected : "standard",
       sound: typeof s.sound === "boolean" ? s.sound : true,
       custom,
+      theme: s.theme === "light" || s.theme === "dark" ? s.theme : "system",
     };
   } catch {
     return fallback;

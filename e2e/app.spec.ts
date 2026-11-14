@@ -63,6 +63,11 @@ test("microphone failure offers retry without breaking selection", async ({ page
 
   await expect(page.getByText(/Microphone blocked/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Enable microphone" })).toBeEnabled();
+  await page.getByRole("button", { name: "Dismiss notification" }).click();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(
+    page.locator("#sheet").getByRole("button", { name: "Enable microphone" }),
+  ).toBeEnabled();
 });
 test("real audio pipeline detects A2 and stops capture", async ({ page }) => {
   await page.addInitScript(() => {
@@ -73,6 +78,9 @@ test("real audio pipeline detects A2 and stops capture", async ({ page }) => {
       o.frequency.value = 110;
       const gain = c.createGain();
       gain.gain.value = 0.3;
+      window.__muteTestTone = () => {
+        gain.gain.value = 0;
+      };
       const dest = c.createMediaStreamDestination();
       o.connect(gain).connect(dest);
       o.start();
@@ -90,13 +98,19 @@ test("real audio pipeline detects A2 and stops capture", async ({ page }) => {
 
   await expect(page.locator("#status")).toHaveText("In tune", { timeout: 10000 });
   await expect(page.locator("#note")).toHaveText("A");
+  await expect(page.locator(".marker-check")).toHaveCSS("opacity", "1");
+  await expect(page.locator(".zero")).toHaveCSS("opacity", "0.95");
   const firstY = async () => {
-    const d = await page.locator("#trace").getAttribute("d");
+    const d = await page
+      .locator("#trace path")
+      .evaluateAll(
+        (paths) => paths.map((path) => path.getAttribute("d") || "").find(Boolean) || "",
+      );
     return Number(d?.match(/M[-.0-9]+,([-.0-9]+)/)?.[1]);
   };
   await expect.poll(firstY).toBeGreaterThan(0);
   const previousY = await firstY();
-  await expect.poll(firstY).toBeLessThan(previousY);
+  await expect.poll(firstY).toBeGreaterThan(previousY);
   await expect(page.getByRole("button", { name: /Start tuning|Stop tuning/ })).toHaveCount(0);
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
@@ -108,6 +122,9 @@ test("real audio pipeline detects A2 and stops capture", async ({ page }) => {
     document.dispatchEvent(new Event("visibilitychange"));
   });
   await expect(page.locator("#status")).toHaveText("In tune", { timeout: 10000 });
+  await expect(page.locator("#marker-value")).toBeEmpty();
+  await page.evaluate(() => window.__muteTestTone());
+  await expect(page.locator("#marker-value")).toBeEmpty();
 });
 
 test("error notifications never move the tuner", async ({ page }) => {
@@ -142,4 +159,59 @@ test("guitar reference samples play offline", async ({ page, context }) => {
   await page.getByRole("button", { name: "String 5, A2" }).click();
   await expect.poll(() => page.evaluate(() => window.__referenceDuration)).toBeGreaterThan(2);
   await expect(page.getByRole("alert")).not.toBeVisible();
+});
+
+test("theme choice persists and System follows the device", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel("Theme", { exact: true }).selectOption("light");
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+  await page.getByLabel("Theme", { exact: true }).selectOption("system");
+  await expect(page.locator("html")).toHaveCSS("background-color", "rgb(33, 26, 22)");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveCSS("background-color", "rgb(246, 239, 230)");
+});
+
+test("completion sample plays once, then re-arms after a second out of tune", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__completionPlays = 0;
+    const original = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args) {
+      if (this.buffer && this.buffer.duration > 0.05 && this.buffer.duration < 1.5)
+        window.__completionPlays++;
+      return original.apply(this, args);
+    };
+    navigator.mediaDevices.getUserMedia = async () => {
+      const context = new AudioContext();
+      await context.resume();
+      const oscillator = context.createOscillator();
+      oscillator.frequency.value = 110;
+      const destination = context.createMediaStreamDestination();
+      oscillator.connect(destination);
+      oscillator.start();
+      window.__setTone = (frequency) => {
+        oscillator.frequency.value = frequency;
+      };
+      destination.stream.getTracks()[0].addEventListener("ended", () => {
+        oscillator.stop();
+        void context.close();
+      });
+      return destination.stream;
+    };
+  });
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() => window.__completionPlays)).toBe(1);
+  await page.waitForTimeout(2600);
+  expect(await page.evaluate(() => window.__completionPlays)).toBe(1);
+  await page.evaluate(() => window.__setTone(118));
+  await expect(page.locator("#app")).not.toHaveClass(/in-tune/);
+  await page.waitForTimeout(1100);
+  await page.evaluate(() => window.__setTone(110));
+  await expect.poll(() => page.evaluate(() => window.__completionPlays)).toBe(2);
 });

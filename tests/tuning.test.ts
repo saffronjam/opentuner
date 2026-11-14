@@ -73,3 +73,13 @@ it("acquires automatic tuning after the page has been open a while", () => {
   t.update({ frequency: 110, clarity: 1, time: 10000 }, PRESETS[0], null);
   expect(t.update({ frequency: 110, clarity: 1, time: 10120 }, PRESETS[0], null)?.string).toBe(1);
 });
+
+it("marks the half-step display tolerance as in tune after settling", () => {
+  for (const offset of [-5, -4, 0, 4, 5, 5.1, -5.1]) {
+    const t = new Tracker();
+    const frequency = hz(45) * 2 ** (offset / 1200);
+    t.update({ frequency, clarity: 1, time: 1000 }, PRESETS[0], 1);
+    const result = t.update({ frequency, clarity: 1, time: 1400 }, PRESETS[0], 1);
+    expect(result?.inTune).toBe(Math.abs(offset) <= 5);
+  }
+});

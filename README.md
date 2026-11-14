@@ -5,7 +5,7 @@ Just tune your guitar. Installable, offline, and entirely on your device.
 **https://tuna.saffronbun.com**
 
 Automatic or manual tuning, six presets, and saved custom tunings.
-Follows your system's light or dark theme. No account or audio uploads.
+System, light and dark themes. No account or audio uploads.
 
 ```sh
 bun install
@@ -15,8 +15,9 @@ just build
 just preview  # localhost:4175
 ```
 
-Allow the microphone once, then just pluck a string. Listening starts automatically. Tap a string to hear its reference note, or when it
-is far out of tune. Offline use needs one complete online load first.
+Allow the microphone once, then just pluck a string. Listening starts
+automatically. Tap a string to hear its reference note, or when it is far
+out of tune. Offline use needs one complete online load first.
 Microphone access requires HTTPS or localhost.
 
 Releases use annotated `vX.Y.Z` tags. CI builds
